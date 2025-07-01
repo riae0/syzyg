@@ -1706,3 +1706,557 @@ div.sheet-KItem-Subtype > div {
 	color: #4A57ED;
     border: none;
 }
+
+.sheet-base-wrapper.sheet-tab-character {
+    margin-top: 5px; /* Adjust as needed (try 48–56px for Roll20 sizing) */
+}
+
+/*begin addins */
+
+/* SYZYG CHARACTER SHEET - BASE STYLES */
+.sheet-syzyg-container {
+    width: 100%;
+    color: #e6e6e6;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    padding: 15px;
+    border-radius: 8px;
+    position: relative;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+    border: 1px solid #4e4e8b;
+}
+
+/* CUSTOM SCROLLBAR */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #16213e;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4e4e8b;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #7a7ac5;
+}
+
+/* GENERAL TEXT STYLING */
+h1, h2, h3, h4, h5 {
+    color: #7fc8f8;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+}
+
+label {
+    color: #7fc8f8;
+    font-size: 12px;
+    display: block;
+    margin-bottom: 3px;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus,
+textarea:focus {
+    border-color: #7fc8f8;
+    box-shadow: 0 0 5px rgba(127, 200, 248, 0.5);
+}
+
+/* HANDWRITING FONT FOR CHARACTER INPUTS */
+.sheet-character-name,
+input[class*="attr-input"],
+.sheet-defense-value input,
+input[name^="attr_current_hp"],
+input[name^="attr_max_hp"],
+input[name^="attr_weapon"],
+textarea {
+    font-family: 'Kalam', cursive, 'Segoe UI', Tahoma;
+    font-weight: bold;
+}
+
+/* HEADER & LOGO */
+.sheet-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #4e4e8b;
+    background: linear-gradient(to right, rgba(25, 25, 50, 0.8), rgba(35, 35, 70, 0.8));
+    border-radius: 8px 8px 0 0;
+}
+
+.sheet-logo-container {
+    flex: 0 0 150px;
+    padding: 10px;
+}
+
+.sheet-logo {
+    max-width: 100%;
+    height: auto;
+    filter: drop-shadow(0 0 5px rgba(127, 200, 248, 0.7));
+}
+
+.sheet-character-name-container {
+    flex: 1;
+    padding: 0 15px;
+}
+
+.sheet-character-name {
+    font-size: 24px;
+    font-weight: bold;
+    padding: 8px 15px;
+    border-radius: 6px;
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+.sheet-pronouns {
+    font-size: 14px;
+    padding: 4px 10px;
+    width: 50%;
+}
+
+/* SECTION STYLING */
+.sheet-section {
+    margin-bottom: 20px;
+    background: rgba(22, 33, 62, 0.5);
+    border-radius: 6px;
+    border: 1px solid #4e4e8b;
+    overflow: hidden;
+}
+
+.sheet-section-header {
+    background: linear-gradient(45deg, #2b2b5a, #3a3a7a);
+    padding: 8px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #4e4e8b;
+}
+
+.sheet-section-content {
+    padding: 15px;
+}
+
+.sheet-toggle-button {
+    background: none;
+    border: none;
+    color: #7fc8f8;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.sheet-toggle-button:hover {
+    color: white;
+}
+
+/* CHARACTER DETAILS */
+.sheet-details-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.sheet-detail-field {
+    margin-bottom: 8px;
+}
+
+.sheet-detail-field-wide {
+    grid-column: span 2;
+}
+
+/* ATTRIBUTES SECTION */
+.sheet-attributes-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.sheet-attr-column {
+    flex: 1;
+    min-width: 30%;
+    border-radius: 6px;
+    border: 1px solid #4e4e8b;
+    overflow: hidden;
+}
+
+.sheet-column-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 15px;
+    background: linear-gradient(45deg, #2b2b5a, #3a3a7a);
+    border-bottom: 1px solid #4e4e8b;
+}
+
+.sheet-column-content {
+    padding: 15px;
+}
+
+/* ATTRIBUTE STYLING */
+.sheet-attribute-block {
+    margin-bottom: 20px;
+    position: relative;
+    border-bottom: 1px dotted #4e4e8b;
+    padding-bottom: 15px;
+}
+
+.sheet-attribute-circle {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 2px solid #7fc8f8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 15px;
+    position: relative;
+    box-shadow: 0 0 10px rgba(127, 200, 248, 0.3);
+}
+
+.sheet-attr-label {
+    position: absolute;
+    top: -10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #7fc8f8;
+    border: 1px solid #4e4e8b;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+}
+
+.sheet-attr-input {
+    width: 40px;
+    height: 40px;
+    text-align: center;
+    font-size: 22px;
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+.sheet-attr-mod {
+    font-size: 12px;
+    display: block;
+    text-align: center;
+    margin-top: 3px;
+}
+
+/* SKILLS STYLING */
+.sheet-skills-container, .sheet-moves-container {
+    padding: 0 5px;
+}
+
+.sheet-skill, .sheet-move {
+    margin-bottom: 8px;
+    border-radius: 4px;
+    padding: 5px 8px;
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.sheet-skill:hover, .sheet-move:hover {
+    background: rgba(35, 45, 75, 0.8);
+}
+
+.sheet-skill-button, .sheet-move-button {
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    width: calc(100% - 60px);
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* TEETH INDICATORS */
+.sheet-teeth-container {
+    display: flex;
+    gap: 4px;
+}
+
+.sheet-tooth {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    width: 12px;
+    height: 12px;
+    border: 1px solid #4e4e8b;
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sheet-tooth:checked {
+    background-color: #ffd700;
+    border-color: #b8860b;
+}
+
+.sheet-tooth:hover {
+    border-color: #7fc8f8;
+    box-shadow: 0 0 3px rgba(127, 200, 248, 0.5);
+}
+
+/* Three states for teeth to represent Low/Average/High skill */
+.sheet-tooth:nth-child(1):checked ~ .sheet-tooth:nth-child(2),
+.sheet-tooth:nth-child(1):checked ~ .sheet-tooth:nth-child(3) {
+    background-color: #16213e;
+    border-color: #4e4e8b;
+}
+
+.sheet-tooth:nth-child(2):checked ~ .sheet-tooth:nth-child(3) {
+    background-color: #16213e;
+    border-color: #4e4e8b;
+}
+
+/* DEFENSE STYLING */
+.sheet-defenses-container {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px dotted #4e4e8b;
+}
+
+.sheet-defense {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.sheet-defense-name {
+    width: 80px;
+    font-weight: bold;
+}
+
+.sheet-defense-value {
+    width: 40px;
+    margin-right: 10px;
+}
+
+.sheet-defense-value input {
+    width: 100%;
+    text-align: center;
+    padding: 3px;
+    font-size: 16px;
+}
+
+/* HEALTH & RESOURCES */
+.sheet-health-container {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px dotted #4e4e8b;
+}
+
+.sheet-health-row, .sheet-resource-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.sheet-health-row span, .sheet-resource-row span {
+    width: 120px;
+    font-size: 14px;
+    color: #7fc8f8;
+}
+
+.sheet-current-hp, .sheet-max-hp, .sheet-bloodied, .sheet-temp-hp,
+.sheet-surges-remaining, .sheet-surges-total, .sheet-surge-value {
+    width: 50px;
+    text-align: center;
+    margin: 0 3px;
+}
+
+/* HARM TRACK */
+.sheet-harm-container {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px dotted #4e4e8b;
+}
+
+.sheet-harm-track {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px;
+    align-items: center;
+}
+
+.sheet-harm-label {
+    font-size: 13px;
+}
+
+.sheet-harm-boxes {
+    display: flex;
+    gap: 5px;
+}
+
+.sheet-harm-box {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    width: 16px;
+    height: 16px;
+    border: 1px solid #4e4e8b;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.sheet-harm-box:checked {
+    border-color: #a52a2a;
+}
+
+/* RESOURCES */
+.sheet-resources-container {
+    margin-bottom: 15px;
+}
+
+.sheet-textarea-row {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.sheet-textarea-row textarea {
+    width: 100%;
+    height: 60px;
+    margin-top: 5px;
+}
+
+/* COMBAT ROLLER */
+.sheet-combat-roller .sheet-section-content {
+    padding: 10px;
+}
+
+.sheet-roller-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.sheet-roller-cell {
+    text-align: center;
+    padding: 5px;
+}
+
+.sheet-combat-button {
+    width: 100%;
+    padding: 10px;
+    background: linear-gradient(135deg, #2b2b5a, #3a3a7a);
+    border: 1px solid #4e4e8b;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+}
+
+.sheet-combat-button:hover {
+    background: linear-gradient(135deg, #3a3a7a, #4e4e8b);
+    box-shadow: 0 0 10px rgba(127, 200, 248, 0.4);
+}
+
+.sheet-initiative-button {
+    background: linear-gradient(135deg, #2b5a2b, #3a7a3a);
+}
+
+.sheet-initiative-button:hover {
+    background: linear-gradient(135deg, #3a7a3a, #4e8b4e);
+}
+
+/* TAB SYSTEM */
+.sheet-tab-system {
+    border: 1px solid #4e4e8b;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.sheet-tab-buttons {
+    display: flex;
+    background: linear-gradient(45deg, #2b2b5a, #3a3a7a);
+    border-bottom: 1px solid #4e4e8b;
+    position: relative;
+    padding: 0 5px;
+}
+
+/* Updated tab styling for label-based tabs */
+.sheet-tab-label {
+    padding: 10px 20px;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    font-size: 14px;
+    margin: 0;
+    display: inline-block;
+}
+
+.sheet-tab-label:hover {
+    color: #fff;
+}
+
+.sheet-tab-button {
+    display: none;
+}
+
+.sheet-tab-button:checked + span {
+    border-bottom-color: #7fc8f8;
+    color: #7fc8f8;
+}
+
+.sheet-tab-content {
+    min-height: 300px;
+    padding: 15px;
+}
+
+/* Scrollwork Frame Elements */
+.sheet-section::before,
+.sheet-attr-column::before,
+.sheet-tab-system::before {
+    content: "";
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    right: 5px;
+    bottom: 5px;
+    border: 1px solid rgba(127, 200, 248, 0.2);
+    border-radius: 4px;
+    pointer-events: none;
+}
+
+/* Marble-like texture for headers */
+.sheet-column-header,
+.sheet-section-header,
+.sheet-tab-buttons {
+    background-image: linear-gradient(45deg, rgba(43, 43, 90, 0.8) 25%, rgba(58, 58, 122, 0.8) 25%, rgba(58, 58, 122, 0.8) 50%, rgba(43, 43, 90, 0.8) 50%, rgba(43, 43, 90, 0.8) 75%, rgba(58, 58, 122, 0.8) 75%, rgba(58, 58, 122, 0.8) 100%);
+    background-size: 20px 20px;
+}
+
+/* Buffer space to draw eye inward */
+.sheet-syzyg-container {
+    margin: 20px;
+    outline: 2px solid rgba(127, 200, 248, 0.3);
+    outline-offset: -10px;
+}
+
+/* THEME VARIANTS - Dark is default */
+.sheet-syzyg-container[data-theme="light"] {
+    background-color: #f0f0f5;
+    color: #333;
+    border-color: #ccc;
+    /* Additional overrides would be added here */
+}
