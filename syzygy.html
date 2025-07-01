@@ -234,13 +234,326 @@ Object.keys(multistats).forEach(destination => {
         });
     }
 });
+on("change:acrobatics_tier change:dexterity-mod", function() {
+  getAttrs(["acrobatics_tier", "dexterity-mod"], function(v) {
+    let tier = v.acrobatics_tier || "low";
+    let mod = 0;
+    if (tier === "average") {
+      mod = Math.max(2, parseInt(v["dexterity-mod"], 10) || 0);
+    } else if (tier === "high") {
+      mod = 6;
+    } // low = 0
+    setAttrs({ acrobatics_mod: mod });
+  });
+});
+on("change:Harm-Taken change:Harm-TotalCapacity", function() {
+  getAttrs(["Harm-Taken", "Harm-TotalCapacity"], function(v) {
+    let harm = parseInt(v["Harm-Taken"], 10) || 0;
+    let cap = parseInt(v["Harm-TotalCapacity"], 10) || 7;
+    let mod = 0;
+    if (harm >= cap) {
+      mod = "half"; // signal for half-roll, can be handled by user for now
+    } else if (harm >= 4) {
+      mod = -2;
+    } else if (harm >= 1) {
+      mod = -1;
+    }
+    setAttrs({ harm_mod: mod });
+  });
+});
+on("change:Luck1 change:Luck2 change:Luck3 change:Luck4 change:Luck5 change:Luck6 change:Luck7", function() {
+  // Count how many boxes are checked
+  let fields = ["Luck1","Luck2","Luck3","Luck4","Luck5","Luck6","Luck7"];
+  getAttrs(fields, function(v) {
+    let used = fields.reduce((a, f) => a + (v[f] === "on" ? 1 : 0), 0);
+    setAttrs({ luck_mod: -used });
+  });
+});
+// Attribute modifiers calculation
+const calculateMod = (score) => {
+    return Math.floor((score - 10) / 2);
+};
 
+// Handle attribute changes
+['strength', 'constitution', 'dexterity', 'intelligence', 'wisdom', 'charisma'].forEach(attr => {
+    on(`change:${attr}`, function() {
+        getAttrs([attr], values => {
+            const score = parseInt(values[attr]) || 0;
+            const mod = calculateMod(score);
+            const update = {};
+            update[`${attr}_mod`] = mod;
+            setAttrs(update);
+        });
+    });
+});
+
+// Calculate skill bonuses based on tiers
+const calculateSkillBonus = (attrMod, tier) => {
+    switch(parseInt(tier)) {
+        case 0: return 0; // Low skill
+        case 1: return Math.max(2, attrMod); // Average skill
+        case 2: return 6; // High skill
+    }
+    return 0;
+};
+
+// Handle skill tier changes
+const skills = {
+    athletics: 'strength',
+    endurance: 'constitution',
+    acrobatics: 'dexterity',
+    stealth: 'dexterity',
+    thievery: 'dexterity',
+    arcana: 'intelligence',
+    history: 'intelligence',
+    religion: 'intelligence',
+    dungeoneering: 'wisdom',
+    healing: 'wisdom',
+    insight: 'wisdom',
+    nature: 'wisdom',
+    perception: 'wisdom',
+    bluff: 'charisma',
+    diplomacy: 'charisma',
+    intimidate: 'charisma',
+    streetwise: 'charisma'
+};
+
+Object.keys(skills).forEach(skill => {
+    const attr = skills[skill];
+    on(`change:${skill}_tier change:${attr}`, function() {
+        getAttrs([`${skill}_tier`, attr, `${attr}_mod`], values => {
+            const tier = parseInt(values[`${skill}_tier`]) || 0;
+            const attrMod = parseInt(values[`${attr}_mod`]) || 0;
+            const bonus = calculateSkillBonus(attrMod, tier);
+            
+            const update = {};
+            update[`${skill}_bonus`] = bonus;
+            setAttrs(update);
+        });
+    });
+});
+
+// Calculate defense values
+on('change:strength change:constitution change:dexterity change:intelligence change:wisdom change:charisma change:fortitude_base change:reflex_base change:will_base change:fortitude_tier change:reflex_tier change:will_tier', function() {
+    getAttrs([
+        'strength_mod', 'constitution_mod', 'dexterity_mod', 'intelligence_mod', 'wisdom_mod', 'charisma_mod',
+        'fortitude_base', 'reflex_base', 'will_base',
+        'fortitude_tier', 'reflex_tier', 'will_tier'
+    ], values => {
+        const strMod = parseInt(values.strength_mod) || 0;
+        const conMod = parseInt(values.constitution_mod) || 0;
+        const dexMod = parseInt(values.dexterity_mod) || 0;
+        const intMod = parseInt(values.intelligence_mod) || 0;
+        const wisMod = parseInt(values.wisdom_mod) || 0;
+        const chaMod = parseInt(values.charisma_mod) || 0;
+        
+        // Calculate base values
+        let fortBase, refBase, willBase;
+        
+        // Fortitude base
+        switch(values.fortitude_base) {
+            case 'str': fortBase = strMod; break;
+            case 'con': fortBase = conMod; break;
+            case 'highest': fortBase = Math.max(strMod, conMod); break;
+            default: fortBase = conMod;
+        }
+        
+        // Reflex base
+        switch(values.reflex_base) {
+            case 'dex': refBase = dexMod; break;
+            case 'int': refBase = intMod; break;
+            case 'highest': refBase = Math.max(dexMod, intMod); break;
+            default: refBase = dexMod;
+        }
+        
+        // Will base
+        switch(values.will_base) {
+            case 'wis': willBase = wisMod; break;
+            case 'cha': willBase = chaMod; break;
+            case 'highest': willBase = Math.max(wisMod, chaMod); break;
+            default: willBase = wisMod;
+        }
+        
+        // Add tier bonuses
+        const fortTier = parseInt(values.fortitude_tier) || 0;
+        const refTier = parseInt(values.reflex_tier) || 0;
+        const willTier = parseInt(values.will_tier) || 0;
+        
+        const fortBonus = calculateSkillBonus(fortBase, fortTier);
+        const refBonus = calculateSkillBonus(refBase, refTier);
+        const willBonus = calculateSkillBonus(willBase, willTier);
+        
+        setAttrs({
+            fortitude: fortBonus,
+            reflex: refBonus,
+            will: willBonus
+        });
+    });
+});
+
+// Calculate health-related values
+on('change:max_hp change:surges_total change:constitution_mod', function() {
+    getAttrs(['max_hp', 'surges_total', 'constitution_mod'], values => {
+        const maxHp = parseInt(values.max_hp) || 0;
+        const surgesTotal = parseInt(values.surges_total) || 0;
+        const conMod = parseInt(values.constitution_mod) || 0;
+        
+        // Calculate bloodied value (half of max HP)
+        const bloodied = Math.floor(maxHp / 2);
+        
+        // Calculate surge value (1/4 of max HP)
+        const surgeValue = Math.floor(maxHp / 4);
+        
+        setAttrs({
+            bloodied: bloodied,
+            surge_value: surgeValue
+        });
+    });
+});
+
+// Handle luck usage and penalty
+on('change:luck', function() {
+    getAttrs(['luck'], values => {
+        const luck = parseInt(values.luck) || 0;
+        const luckPenalty = -luck; // -1 per point of luck used
+        
+        setAttrs({
+            luck_penalty: luckPenalty
+        });
+    });
+});
+
+// Handle section toggling with data-minimized attributes
+['details', 'dnd_attrs', 'motw_attrs', 'stats', 'combat_roller'].forEach(section => {
+    on(`clicked:toggle_${section}`, function() {
+        getAttrs([`${section}_minimized`], values => {
+            const minimized = values[`${section}_minimized`] === "1" ? "0" : "1";
+            const update = {};
+            update[`${section}_minimized`] = minimized;
+            setAttrs(update);
+            
+            // For debugging
+            console.log(`${section} toggle to ${minimized}`);
+        });
+    });
+});
+
+// Handle playbook selection
+on('change:playbook', function() {
+    getAttrs(['playbook'], values => {
+        const playbook = values.playbook;
+        if (playbook) {
+            // This would load the appropriate playbook content
+            // In a full implementation, this would pull from a data structure
+            // with all playbook details
+            const playbookName = {
+                'chosen': 'The Chosen',
+                'crooked': 'The Crooked',
+                'divine': 'The Divine',
+                'expert': 'The Expert',
+                'flake': 'The Flake',
+                'initiate': 'The Initiate',
+                'monstrous': 'The Monstrous',
+                'mundane': 'The Mundane',
+                'professional': 'The Professional',
+                'spell-slinger': 'The Spell-Slinger',
+                'wronged': 'The Wronged'
+            }[playbook] || '';
+            
+            const playbookDescription = {
+                'chosen': 'You are the Chosen One, marked by destiny for a special purpose.',
+                'crooked': 'You've been on the wrong side of the law for years.',
+                'divine': 'You are the agent of a higher power, sent to Earth for a holy purpose.',
+                'expert': 'You study the strange and unusual, and know more than most about the secrets of the universe.',
+                'flake': 'You're the one who can put it all together, who sees the patterns others don't.',
+                'initiate': 'You belong to an ancient order that has protected the world from supernatural threats for generations.',
+                'monstrous': 'You're half-human, half-monster, caught between worlds.',
+                'mundane': 'You're the regular person in a group of weirdos, but that doesn't make you any less important.',
+                'professional': 'You work for a mysterious organization that deals with the supernatural.',
+                'spell-slinger': 'You use magic to battle the forces of darkness.',
+                'wronged': 'Something terrible happened to you or someone you loved, and now you seek vengeance.'
+            }[playbook] || '';
+            
+            setAttrs({
+                playbook_name: playbookName,
+                playbook_description: playbookDescription
+            });
+            
+            // Update playbook-selected attribute for CSS
+            setAttrs({
+                'playbook_selected': '1'
+            });
+        }
+    });
+});
+
+// Power type filtering
+on('change:power_view', function() {
+    // This would typically interact with repeating sections
+    // Implementation depends on how the sheet handles repeating section display
+});
+
+// HP calculation based on level and constitution
+on('change:level change:constitution_mod change:hp_per_level', function() {
+    getAttrs(['level', 'constitution_mod', 'hp_per_level'], values => {
+        const level = parseInt(values.level) || 1;
+        const conMod = parseInt(values.constitution_mod) || 0;
+        const hpPerLevel = parseInt(values.hp_per_level) || 0;
+        
+        if (hpPerLevel > 0) {
+            const maxHp = (hpPerLevel + conMod) * level;
+            
+            setAttrs({
+                max_hp: maxHp
+            });
+        }
+    });
+});
+
+// Theme switching
+on('change:sheet_theme', function() {
+    getAttrs(['sheet_theme'], values => {
+        const theme = values.sheet_theme || 'dark';
+        
+        // Update data-theme attribute for CSS theming
+        const container = document.querySelector('.sheet-syzyg-container');
+        if (container) {
+            container.setAttribute('data-theme', theme);
+        }
+    });
+});
+
+// Initialize sheet when opened
+on('sheet:opened', function() {
+    const defaultAttrs = {
+        details_minimized: "0",
+        dnd_attrs_minimized: "0",
+        motw_attrs_minimized: "0",
+        stats_minimized: "0",
+        combat_roller_minimized: "0",
+        tab: "features",
+        sheet_theme: "dark"
+    };
+    
+    setAttrs(defaultAttrs);
+    
+    // Trigger initial calculations
+    const attributes = ['strength', 'constitution', 'dexterity', 'intelligence', 'wisdom', 'charisma'];
+    getAttrs(attributes, values => {
+        const updates = {};
+        attributes.forEach(attr => {
+            const score = parseInt(values[attr]) || 10;
+            updates[`${attr}_mod`] = calculateMod(score);
+        });
+        setAttrs(updates);
+    });
+});
 </script>
 
 <rolltemplate class="sheet-rolltemplate-motw-dieroll">
 	<div class="sheet-template-container">
 		<div class="sheet-dieroll-title">
-			{{#stat}} <span data-i18n="{{stat}}">{{stat}}</span> Roll {{/stat}}
+			{{#stat}} <span>{{stat}}</span> Roll {{/stat}}
 			{{#title}} {{title}} {{/title}}
 			{{#CharName}} ({{CharName}}) {{/CharName}}
 		</div>
@@ -249,34 +562,23 @@ Object.keys(multistats).forEach(destination => {
 				<div class="sheet-dieroll-roll">{{Roll}}</div>
 		</div>
 		<div class="sheet-dieroll-title" align="right">
-			<span data-i18n="hit">Hit</span>: <span data-i18n="advsuccess">Advanced Success</span>!
-		</div>
-		<div>
-			<i><span data-i18n="treat-regular">Treat as a regular success if you do not have the advanced improvement for this move.</span></i>
+			<span>Critical Outcome</span>!
 		</div>
 			{{/rollGreater() Roll 11}}
-			{{#rollBetween() Roll 10 11}}
-		<div class="sheet-dieroll-content-success">
-				<div class="sheet-dieroll-roll">{{Roll}}</div>
-		</div>
-		<div class="sheet-dieroll-title" align="right">
-			<span data-i18n="hit">Hit</span>: <span data-i18n="success">Success</span>!
-		</div>
-			{{/rollBetween() Roll 10 11}}
-			{{#rollBetween() Roll 7 9}}
+			{{#rollBetween() Roll 7 11}}
 		<div class="sheet-dieroll-content-mixed">
 				<div class="sheet-dieroll-roll">{{Roll}}</div>
 		</div>
 		<div class="sheet-dieroll-title" align="right">
-			<span data-i18n="hit">Hit</span>: <span data-i18n="mixed">Mixed Success</span>.
+			<span>Strong Outcome</span>.
 		</div>
-			{{/rollBetween() Roll 7 9}}
+			{{/rollBetween() Roll 7 11}}
 			{{#rollLess() Roll 7}}
 		<div class="sheet-dieroll-content-failure">
 				<div class="sheet-dieroll-roll">{{Roll}}</div>
 		</div>
 		<div class="sheet-dieroll-title" align="right">
-			<span data-i18n="failure">Failure</span>.
+			<span>Weak Outcome</span>.
 		</div>
 		<div>
 			<i><span data-i18n="mark-xp-remind">Make sure to mark experience!</span></i>
@@ -347,6 +649,7 @@ Object.keys(multistats).forEach(destination => {
 
 <div class="sheet-wrapper">
 <!-- Character Tab -->
+<button type="roll" value="&{template:motw-dieroll} {{stat=attack}} {{CharName=@{character_name}}} {{Roll=[[2d6]]}}" name="roll_Attack">Attack Test</button>
 	<div class="sheet-XP">
 		<p>
 		<input type="checkbox" class="sheet-checkbox" name="attr_XP1"><span class="sheet-altbox"></span>
@@ -577,165 +880,7 @@ Object.keys(multistats).forEach(destination => {
 				<label class="sheet-headtwo" data-i18n="ability_scores">Ability Scores</label>
 				<div class="sheet-statblock">
 					<!-- Ability Header -->
-					<div class="sheet-header">
-						<div class="sheet-item sheet-small">
-							<label data-i18n="score">Score</label> 
-						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="ability">Ability</label> 
-						</div>
-						<div class="sheet-item sheet-small">
-							<label data-i18n="mod">Mod</label> 
-						</div>
-						<div class="sheet-item sheet-small">
-							<label data-i18n="mod_half_level">Mod + 1/2 Lvl</label> 
-						</div>
-					</div>
-					<!-- Strength -->
-					<div class="sheet-row">
-						<div class="sheet-item sheet-small sheet-halfblack">
-							<input type="text" name="attr_strength" value="10"/>
-						</div>
-						<div class="sheet-item sheet-med sheet-black">
-							<label data-i18n="strength">Strength</label> 
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-							<input type="text" name="attr_strength-mod" value="floor((@{strength}-10)/2)" disabled = "true"/>
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-						    <input type="hidden" name="attr_strength_mod_level" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{ability-strength-roll-text}}} {{name=Strength Ability Check}} {{class=@{character_name}}} {{type=Using Strength}} {{ability=[[1d20 + [[@{strength-mod}]] [STR Mod] + [[@{halflevel}]] [Half Level] ]]}}" name='strength-Check'>
-							    <span name="attr_strength_mod_level" ></span>
-							</button>
-						</div>
-					</div>
-					<!-- Constitution -->
-					<div class="sheet-row">
-						<div class="sheet-item sheet-small sheet-halfblack">
-							<input type="text" name="attr_constitution" value="10"/>
-						</div>
-						<div class="sheet-item sheet-med sheet-black">
-							<label data-i18n="constitution">Constitution</label> 
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-							<input type="text" name="attr_constitution-mod" value="floor((@{constitution}-10)/2)" disabled = "true"/>
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-						    <input type="hidden" name="attr_constitution_mod_level" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{ability-constitution-roll-text}}} {{name=Constitution Ability Check}} {{class=@{character_name}}} {{type=Using Constitution}} {{ability=[[1d20 + [[@{constitution-mod}]] [CON Mod] + [[@{halflevel}]] [Half Level] ]]}}" name='constitution-Check'>
-								<span name="attr_constitution_mod_level" ></span>
-							</button>
-						</div>
-					</div>
-					<!-- Dexterity -->
-					<div class="sheet-row">
-						<div class="sheet-item sheet-small sheet-halfblack">
-							<input type="text" name="attr_dexterity" value="10"/>
-						</div>
-						<div class="sheet-item sheet-med sheet-black">
-							<label data-i18n="dexterity">Dexterity</label> 
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-							<input type="text" name="attr_dexterity-mod" value="floor((@{dexterity}-10)/2)" disabled = "true"/>
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-						    <input type="hidden" name="attr_dexterity_mod_level" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{ability-dexterity-roll-text}}} {{name=Dexterity Ability Check}} {{class=@{character_name}}} {{type=Using Dexterity}} {{ability=[[1d20 + [[@{dexterity-mod}]] [DEX Mod] + [[@{halflevel}]] [Half Level] ]]}}" name='dexterity-Check'>
-								<span name="attr_dexterity_mod_level" ></span>
-							</button>
-						</div>
-					</div>
-					<!-- Intelligence -->
-					<div class="sheet-row">
-						<div class="sheet-item sheet-small sheet-halfblack">
-							<input type="text" name="attr_intelligence" value="10"/>
-						</div>
-						<div class="sheet-item sheet-med sheet-black">
-							<label data-i18n="intelligence">Intelligence</label> 
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-							<input type="text" name="attr_intelligence-mod" value="floor((@{intelligence}-10)/2)" disabled = "true"/>
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-						    <input type="hidden" name="attr_intelligence_mod_level" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{ability-intelligence-roll-text}}} {{name=Intelligence Ability Check}} {{class=@{character_name}}} {{type=Using Intelligence}} {{ability=[[1d20 + [[@{intelligence-mod}]] [INT Mod] + [[@{halflevel}]] [Half Level] ]]}}" name='intelligence-Check'>
-								<span name="attr_intelligence_mod_level" ></span>
-							</button>
-						</div>
-					</div>
-					<!-- Wisdom -->
-					<div class="sheet-row">
-						<div class="sheet-item sheet-small sheet-halfblack">
-							<input type="text" name="attr_wisdom" value="10"/>
-						</div>
-						<div class="sheet-item sheet-med sheet-black">
-							<label data-i18n="wisdom">Wisdom</label> 
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-							<input type="text" name="attr_wisdom-mod" value="floor((@{wisdom}-10)/2)" disabled = "true"/>
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-						    <input type="hidden" name="attr_wisdom_mod_level" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{ability-wisdom-roll-text}}} {{name=Wisdom Ability Check}} {{class=@{character_name}}} {{type=Using Wisdom}} {{ability=[[1d20 + [[@{wisdom-mod}]] [WIS Mod] + [[@{halflevel}]] [Half Level] ]]}}" name='wisdom-Check'>
-								<span name="attr_wisdom_mod_level" ></span>
-							</button>
-						</div>
-					</div>
-					<!-- Charisma -->
-					<div class="sheet-row">
-						<div class="sheet-item sheet-small sheet-halfblack">
-							<input type="text" name="attr_charisma" value="10"/>
-						</div>
-						<div class="sheet-item sheet-med sheet-black">
-							<label data-i18n="charisma">Charisma</label> 
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-							<input type="text" name="attr_charisma-mod" value="floor((@{charisma}-10)/2)" disabled = "true"/>
-						</div>
-						<div class="sheet-item sheet-small sheet-black">
-						    <input type="hidden" name="attr_charisma_mod_level" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{ability-charisma-roll-text}}} {{name=Charisma Ability Check}} {{class=@{character_name}}} {{type=Using Charisma }} {{ability=[[1d20 + [[@{charisma-mod}]] [CHA Mod] + [[@{halflevel}]] [Half Level] ]]}}" name='charisma-Check'>
-								<span name="attr_charisma_mod_level" ></span>
-							</button>
-						</div>
-					</div>
-					<!-- HIDDEN AUTO-CALCULATIONS -->
-					<div class="swept-under-the-rug">
-					    <input type="text" name="attr_strength-mod-level" value="@{strength-mod}+@{halflevel}" disabled = "true"/>
-					    <input type="text" name="attr_constitution-mod-level" value="@{constitution-mod}+@{halflevel}" disabled = "true"/>
-					    <input type="text" name="attr_dexterity-mod-level" value="@{dexterity-mod}+@{halflevel}" disabled = "true"/>
-					    <input type="text" name="attr_intelligence-mod-level" value="@{intelligence-mod}+@{halflevel}" disabled = "true"/>
-					    <input type="text" name="attr_wisdom-mod-level" value="@{wisdom-mod}+@{halflevel}" disabled = "true"/>
-					    <input type="text" name="attr_charisma-mod-level" value="@{charisma-mod}+@{halflevel}" disabled = "true"/>
-					</div>
-								<!-- Charm Cool Sharp Tough Weird -->
-								<div class="sheet-Stat">
-									<span class="sheet-StatLabel" data-i18n="charm">Charm</span>
-									<input type="number" name="attr_Charm" min="-2" max="3" value="0">
-									<button class="sheet-2d6-button" type="roll" value="&{template:motw-dieroll} {{stat=charm}} {{CharName=@{character_name}}} {{Roll=[[2d6+@{Charm}+?{+/- forward?|0}]]}}" name="roll_Charm"></button> 
-								</div>
-								<div class="sheet-Stat">
-									<span class="sheet-StatLabel" data-i18n="cool">Cool</span>
-									<input type="number" name="attr_Cool" min="-2" max="3" value="0">
-									<button class="sheet-2d6-button" type="roll" value="&{template:motw-dieroll} {{stat=cool}} {{CharName=@{character_name}}} {{Roll=[[2d6+@{Cool}+?{+/- forward?|0}]]}}" name="roll_Cool"></button> 
-								</div>
-								<div class="sheet-Stat">
-									<span class="sheet-StatLabel" data-i18n="sharp">Sharp</span>
-									<input type="number" name="attr_Sharp" min="-2" max="3" value="0">
-									<button class="sheet-2d6-button" type="roll" value="&{template:motw-dieroll} {{stat=sharp}} {{CharName=@{character_name}}} {{Roll=[[2d6+@{Sharp}+?{+/- forward?|0}]]}}" name="roll_Sharp"></button> 
-								</div>
-								<div class="sheet-Stat">
-									<span class="sheet-StatLabel" data-i18n="tough">Tough</span>
-									<input type="number" name="attr_Tough" min="-2" max="3" value="0">
-									<button class="sheet-2d6-button" type="roll" value="&{template:motw-dieroll} {{stat=tough}} {{CharName=@{character_name}}} {{Roll=[[2d6+@{Tough}+?{+/- forward?|0}]]}}" name="roll_Tough"></button> 
-								</div>
-								<div class="sheet-Stat">
-									<span class="sheet-StatLabel" data-i18n="weird">Weird</span>
-									<input type="number" name="attr_Weird" min="-2" max="3" value="0">
-									<button class="sheet-2d6-button" type="roll" value="&{template:motw-dieroll} {{stat=weird}} {{CharName=@{character_name}}} {{Roll=[[2d6+@{Weird}+?{+/- forward?|0}]]}}" name="roll_Weird"></button> 
-								</div>
 
-								<!-- Starting Stats Sidebar Section -->
 								<input type="hidden" name="attr_SkinCheck" class="sheet-SkinCheck sheet-99-hider" value="0"> 
 								<div class="sheet-StartingStatsSidebar">
 									<div class="sheet-MinorHead"><span data-i18n="starting">Starting</span> <span data-i18n="stats">Stats</span></div>
@@ -1220,173 +1365,58 @@ Object.keys(multistats).forEach(destination => {
 			<div class="sheet-toggle-container">
 				<input type="checkbox" class="sheet-toggle">
 				<label class="sheet-headtwo" data-i18n="defenses">Defenses</label>
-				<div class="sheet-statblock">
-					<!-- Defence Header -->
-					<div class="sheet-header">
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="score">Score</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label></label> 
-						</div>
-                        <div class="sheet-item sheet-puny sheet-multiline">
-							<label data-i18n="10_and_a_half_level">10 + 1/2 Level</label> 
-						</div>
-                        <div class="sheet-item sheet-puny">
-							<label data-i18n="ability">Ability</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="armor">Armor</label> 
-						</div>
-                        <div class="sheet-item sheet-puny">
-							<label data-i18n="class">Class</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="feat">Feat</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="enh">ENH</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="misc">Misc</label> 
-						</div>
-                        <div class="sheet-item sheet-puny">
-							<label data-i18n="misc">Misc</label> 
-						</div>
-					</div>
-					<!-- AC -->
-					<div class="sheet-row">
-						<div class="sheet-item sheet-puny sheet-halfblack">
-							<input type="text" name="attr_ac" value="@{ac-ten}+@{ac-ability}+@{ac-armor}+@{ac-class}+@{ac-feat}+@{ac-enh}+@{ac-misc}+@{ac-misc2}" disabled = "true"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<label data-i18n="ac">AC</label> 
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ac-ten" value="10+@{halflevel}" disabled = "true"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ac-ability" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ac-armor" value="0"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ac-class" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ac-feat" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ac-enh" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ac-misc" value="0"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ac-misc2" value="0"/>
-						</div>
-					</div>
-					<!-- Fort -->
-					<div class="sheet-row">
-						<div class="sheet-item sheet-puny sheet-halfblack">
-							<input type="text" name="attr_fort" value="@{fort-ten}+@{fort-ability}+@{fort-armor}+@{fort-class}+@{fort-feat}+@{fort-enh}+@{fort-misc}+@{fort-misc2}" disabled = "true"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<label data-i18n="fort">Fort</label> 
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_fort-ten" value="10+@{halflevel}" disabled = "true"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_fort-ability" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_fort-armor" value="0"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_fort-class" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_fort-feat" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_fort-enh" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_fort-misc" value="0"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_fort-misc2" value="0"/>
-						</div>
-					</div>
-					<!-- Ref -->
-					<div class="sheet-row">
-                        <div class="sheet-item sheet-puny sheet-halfblack">
-							<input type="text" name="attr_ref" value="@{ref-ten}+@{ref-ability}+@{ref-armor}+@{ref-class}+@{ref-feat}+@{ref-enh}+@{ref-misc}+@{ref-misc2}" disabled = "true"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<label data-i18n="ref">Ref</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ref-ten" value="10+@{halflevel}" disabled = "true"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ref-ability" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ref-armor" value="0"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ref-class" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ref-feat" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ref-enh" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ref-misc" value="0"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_ref-misc2" value="0"/>
-						</div>
-					</div>
-					<!-- Will -->
-					<div class="sheet-row">
-                        <div class="sheet-item sheet-puny sheet-halfblack">
-							<input type="text" name="attr_will" value="@{will-ten}+@{will-ability}+@{will-armor}+@{will-class}+@{will-feat}+@{will-enh}+@{will-misc}+@{will-misc2}" disabled = "true"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<label data-i18n="will">Will</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_will-ten" value="10+@{halflevel}" disabled = "true"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_will-ability" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_will-armor" value="0"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_will-class" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_will-feat" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_will-enh" value="0"/>
-						</div>
-						<div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_will-misc" value="0"/>
-						</div>
-                        <div class="sheet-item sheet-puny sheet-black">
-							<input type="text" name="attr_will-misc2" value="0"/>
-						</div>
-					</div>
-				</div>
+                <div class="sheet-defenses-container">
+                    <h4>Defenses</h4>
+                    
+                    <div class="sheet-defense">
+                        <div class="sheet-defense-name">Armor</div>
+                        <div class="sheet-defense-value">
+                            <input type="number" name="attr_armor" value="0">
+                        </div>
+                        <div class="sheet-teeth-container">
+                            <input type="radio" name="attr_armor_tier" value="0" class="sheet-tooth" checked>
+                            <input type="radio" name="attr_armor_tier" value="1" class="sheet-tooth">
+                            <input type="radio" name="attr_armor_tier" value="2" class="sheet-tooth">
+                        </div>
+                    </div>
+                    
+                    <div class="sheet-defense">
+                        <div class="sheet-defense-name">Fortitude</div>
+                        <div class="sheet-defense-value">
+                            <input type="number" name="attr_fortitude" value="0">
+                        </div>
+                        <div class="sheet-teeth-container">
+                            <input type="radio" name="attr_fortitude_tier" value="0" class="sheet-tooth" checked>
+                            <input type="radio" name="attr_fortitude_tier" value="1" class="sheet-tooth">
+                            <input type="radio" name="attr_fortitude_tier" value="2" class="sheet-tooth">
+                        </div>
+                    </div>
+                    
+                    <div class="sheet-defense">
+                        <div class="sheet-defense-name">Reflex</div>
+                        <div class="sheet-defense-value">
+                            <input type="number" name="attr_reflex" value="0">
+                        </div>
+                        <div class="sheet-teeth-container">
+                            <input type="radio" name="attr_reflex_tier" value="0" class="sheet-tooth" checked>
+                            <input type="radio" name="attr_reflex_tier" value="1" class="sheet-tooth">
+                            <input type="radio" name="attr_reflex_tier" value="2" class="sheet-tooth">
+                        </div>
+                    </div>
+                    
+                    <div class="sheet-defense">
+                        <div class="sheet-defense-name">Will</div>
+                        <div class="sheet-defense-value">
+                            <input type="number" name="attr_will" value="0">
+                        </div>
+                        <div class="sheet-teeth-container">
+                            <input type="radio" name="attr_will_tier" value="0" class="sheet-tooth" checked>
+                            <input type="radio" name="attr_will_tier" value="1" class="sheet-tooth">
+                            <input type="radio" name="attr_will_tier" value="2" class="sheet-tooth">
+                        </div>
+                    </div>
+                </div>
+
 			</div>
 			<!-- Movement -->
 			<div class="sheet-toggle-container">
@@ -2279,457 +2309,329 @@ Object.keys(multistats).forEach(destination => {
 
 			<div class="sheet-toggle-container">
 				<input type="checkbox" class="sheet-toggle" checked>
-				<label class="sheet-headtwo" data-i18n="skills">Skills</label>
-				<div class="sheet-statblock">
-					<!-- Skills Header -->
-					<div class="sheet-header">
-						<div class="sheet-item sheet-tiny">
-							<label data-i18n="value">Value</label> 
+				<label class="sheet-headtwo">Skills</label>
+				<div class="sheet-statblock">				
+				<div class="sheet-column-content" data-minimized="0">
+					<div class="sheet-attribute-block">
+						<div class="sheet-attribute-circle">
+							<span class="sheet-attr-label">STR</span>
+							<input type="number" name="attr_strength" value="10" class="sheet-attr-input">
+							<span class="sheet-attr-mod" name="attr_strength_mod"></span>
 						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="skill_name">Skill Name</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="trained">Trained</label> 
-						</div>
-                        <div class="sheet-item sheet-small">
-							<label data-i18n="armor_penalty">Armor Penalty</label> 
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<label data-i18n="misc">Misc</label> 
-						</div>
-					</div>
-					<!-- Acrobatics -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_acrobatics_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-acrobatics-roll-text}}} {{name=Acrobatics}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{dexterity-mod}]] [DEX Mod] + [[@{halflevel}]] [Half Level] + [[@{acrobatics-trained}*5)]] [Trained] + [[@{acrobatics-pen}]] [Armor Penalty] + [[@{acrobatics-misc}]] [Misc] ]]}}" name='acrobatics-Check'>
-								<span name="attr_acrobatics_modifier"></span>
-							</button>
-						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="acrobatics">Acrobatics</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="dex">DEX</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_acrobatics-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_acrobatics-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_acrobatics-misc" value="0"/>
+						<div class="sheet-skills-container">
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Athletics}} {{character=@{character_name}}} {{roll=[[2d6+@{athletics_bonus}]]}} {{result=[[7+@{athletics_bonus}]]}}">
+									Athletics
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_athletics_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_athletics_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_athletics_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
 						</div>
 					</div>
-					<!-- Arcana -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_arcana_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-arcana-roll-text}}} {{name=Arcana}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{intelligence-mod}]] [INT Mod] + [[@{halflevel}]] [Half Level] + [[@{arcana-trained}*5)]] [Trained] + [[@{arcana-pen}]] [Armor Penalty] + [[@{arcana-misc}]] [Misc] ]]}}" name='arcana-Check'>
-								<span name="attr_arcana_modifier"></span>
-							</button>
+					
+					<div class="sheet-attribute-block">
+						<div class="sheet-attribute-circle">
+							<span class="sheet-attr-label">CON</span>
+							<input type="number" name="attr_constitution" value="10" class="sheet-attr-input">
+							<span class="sheet-attr-mod" name="attr_constitution_mod"></span>
 						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="arcana">Arcana</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="int">INT</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_arcana-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_arcana-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_arcana-misc" value="0"/>
+						<div class="sheet-skills-container">
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Endurance}} {{character=@{character_name}}} {{roll=[[2d6+@{endurance_bonus}]]}} {{result=[[7+@{endurance_bonus}]]}}">
+									Endurance
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_endurance_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_endurance_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_endurance_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
 						</div>
 					</div>
-					<!-- Athletics -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_athletics_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-athletics-roll-text}}} {{name=Athletics}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{strength-mod}]] [STR Mod] + [[@{halflevel}]] [Half Level] + [[@{athletics-trained}*5)]] [Trained] + [[@{athletics-pen}]] [Armor Penalty] + [[@{athletics-misc}]] [Misc] ]]}}" name='athletics-Check'>
-								<span name="attr_athletics_modifier"></span>
-							</button>
+					
+					<div class="sheet-attribute-block">
+						<div class="sheet-attribute-circle">
+							<span class="sheet-attr-label">DEX</span>
+							<input type="number" name="attr_dexterity" value="10" class="sheet-attr-input">
+							<span class="sheet-attr-mod" name="attr_dexterity_mod"></span>
 						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="athletics">Athletics</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="str">STR</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_athletics-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_athletics-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_athletics-misc" value="0"/>
-						</div>
-					</div>
-					<!-- Bluff -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_bluff_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-bluff-roll-text}}} {{name=Bluff}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{charisma-mod}]] [CHA Mod] + [[@{halflevel}]] [Half Level] + [[@{bluff-trained}*5)]] [Trained] + [[@{bluff-pen}]] [Armor Penalty] + [[@{bluff-misc}]] [Misc] ]]}}" name='bluff-Check'>
-								<span name="attr_bluff_modifier"></span>
-							</button>
-						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="bluff">Bluff</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="cha">CHA</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_bluff-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_bluff-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_bluff-misc" value="0"/>
+						<div class="sheet-skills-container">
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Acrobatics}} {{character=@{character_name}}} {{roll=[[2d6+@{acrobatics_bonus}]]}} {{result=[[7+@{acrobatics_bonus}]]}}">
+									Acrobatics
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_acrobatics_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_acrobatics_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_acrobatics_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Stealth}} {{character=@{character_name}}} {{roll=[[2d6+@{stealth_bonus}]]}} {{result=[[7+@{stealth_bonus}]]}}">
+									Stealth
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_stealth_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_stealth_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_stealth_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Thievery}} {{character=@{character_name}}} {{roll=[[2d6+@{thievery_bonus}]]}} {{result=[[7+@{thievery_bonus}]]}}">
+									Thievery
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_thievery_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_thievery_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_thievery_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
 						</div>
 					</div>
-					<!-- Diplomacy -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_diplomacy_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-diplomacy-roll-text}}} {{name=Diplomacy}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{charisma-mod}]] [CHA Mod] + [[@{halflevel}]] [Half Level] + [[@{diplomacy-trained}*5)]] [Trained] + [[@{diplomacy-pen}]] [Armor Penalty] + [[@{diplomacy-misc}]] [Misc] ]]}}" name='diplomacy-Check'>
-								<span name="attr_diplomacy_modifier"></span>
-							</button>
+					
+					<div class="sheet-attribute-block">
+						<div class="sheet-attribute-circle">
+							<span class="sheet-attr-label">INT</span>
+							<input type="number" name="attr_intelligence" value="10" class="sheet-attr-input">
+							<span class="sheet-attr-mod" name="attr_intelligence_mod"></span>
 						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="diplomacy">Diplomacy</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="cha">CHA</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_diplomacy-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_diplomacy-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_diplomacy-misc" value="0"/>
-						</div>
-					</div>
-					<!-- Dungeoneering -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_dungeoneering_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-dungeoneering-roll-text}}} {{name=Dungeoneering}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{wisdom-mod}]] [WIS Mod] + [[@{halflevel}]] [Half Level] + [[@{dungeoneering-trained}*5)]] [Trained] + [[@{dungeoneering-pen}]] [Armor Penalty] + [[@{dungeoneering-misc}]] [Misc] ]]}}" name='dungeoneering-Check'>
-								<span name="attr_dungeoneering_modifier"></span>
-							</button>
-						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="dungeneering">Dungeoneering</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="wis">WIS</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_dungeoneering-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_dungeoneering-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_dungeoneering-misc" value="0"/>
+						<div class="sheet-skills-container">
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Arcana}} {{character=@{character_name}}} {{roll=[[2d6+@{arcana_bonus}]]}} {{result=[[7+@{arcana_bonus}]]}}">
+									Arcana
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_arcana_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_arcana_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_arcana_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=History}} {{character=@{character_name}}} {{roll=[[2d6+@{history_bonus}]]}} {{result=[[7+@{history_bonus}]]}}">
+									History
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_history_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_history_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_history_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Religion}} {{character=@{character_name}}} {{roll=[[2d6+@{religion_bonus}]]}} {{result=[[7+@{religion_bonus}]]}}">
+									Religion
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_religion_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_religion_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_religion_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
 						</div>
 					</div>
-					<!-- Endurance -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_endurance_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-endurance-roll-text}}} {{name=Endurance}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{constitution-mod}]] [CON Mod] + [[@{halflevel}]] [Half Level] + [[@{endurance-trained}*5)]] [Trained] + [[@{endurance-pen}]] [Armor Penalty] + [[@{endurance-misc}]] [Misc] ]]}}" name='endurance-Check'>
-								<span name="attr_endurance_modifier"></span>
-							</button>
+					
+					<div class="sheet-attribute-block">
+						<div class="sheet-attribute-circle">
+							<span class="sheet-attr-label">WIS</span>
+							<input type="number" name="attr_wisdom" value="10" class="sheet-attr-input">
+							<span class="sheet-attr-mod" name="attr_wisdom_mod"></span>
 						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="endurance">Endurance</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="con">CON</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_endurance-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_endurance-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_endurance-misc" value="0"/>
-						</div>
-					</div>
-					<!-- Heal -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_heal_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-heal-roll-text}}} {{name=Heal}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{wisdom-mod}]] [WIS Mod] + [[@{halflevel}]] [Half Level] + [[@{heal-trained}*5)]] [Trained] + [[@{heal-pen}]] [Armor Penalty] + [[@{heal-misc}]] [Misc] ]]}}" name='heal-Check'>
-								<span name="attr_heal_modifier"></span>
-							</button>
-						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="heal">Heal</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="wis">WIS</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_heal-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_heal-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_heal-misc" value="0"/>
-						</div>
-					</div>
-					<!-- History -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_history_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-history-roll-text}}} {{name=History}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{intelligence-mod}]] [INT Mod] + [[@{halflevel}]] [Half Level] + [[@{history-trained}*5)]] [Trained] + [[@{history-pen}]] [Armor Penalty] + [[@{history-misc}]] [Misc] ]]}}" name='history-Check'>
-								<span name="attr_history_modifier"></span>
-							</button>
-						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="history">History</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="int">INT</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_history-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_history-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_history-misc" value="0"/>
+						<div class="sheet-skills-container">
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Dungeoneering}} {{character=@{character_name}}} {{roll=[[2d6+@{dungeoneering_bonus}]]}} {{result=[[7+@{dungeoneering_bonus}]]}}">
+									Dungeoneering
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_dungeoneering_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_dungeoneering_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_dungeoneering_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Healing}} {{character=@{character_name}}} {{roll=[[2d6+@{healing_bonus}]]}} {{result=[[7+@{healing_bonus}]]}}">
+									Healing
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_healing_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_healing_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_healing_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Insight}} {{character=@{character_name}}} {{roll=[[2d6+@{insight_bonus}]]}} {{result=[[7+@{insight_bonus}]]}}">
+									Insight
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_insight_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_insight_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_insight_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Nature}} {{character=@{character_name}}} {{roll=[[2d6+@{nature_bonus}]]}} {{result=[[7+@{nature_bonus}]]}}">
+									Nature
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_nature_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_nature_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_nature_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Perception}} {{character=@{character_name}}} {{roll=[[2d6+@{perception_bonus}]]}} {{result=[[7+@{perception_bonus}]]}}">
+									Perception
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_perception_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_perception_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_perception_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
 						</div>
 					</div>
-					<!-- Insight -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_insight_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-insight-roll-text}}} {{name=Insight}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{wisdom-mod}]] [WIS Mod] + [[@{halflevel}]] [Half Level] + [[@{insight-trained}*5)]] [Trained] + [[@{insight-pen}]] [Armor Penalty] + [[@{insight-misc}]] [Misc] ]]}}" name='insight-Check'>
-								<span name="attr_insight_modifier"></span>
-							</button>
+					
+					<div class="sheet-attribute-block">
+						<div class="sheet-attribute-circle">
+							<span class="sheet-attr-label">CHA</span>
+							<input type="number" name="attr_charisma" value="10" class="sheet-attr-input">
+							<span class="sheet-attr-mod" name="attr_charisma_mod"></span>
 						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="insight">Insight</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="wis">WIS</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_insight-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_insight-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_insight-misc" value="0"/>
-						</div>
-					</div>
-					<!-- Intimidate -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_intimidate_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-intimidate-roll-text}}} {{name=Intimidate}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{charisma-mod}]] [CHA Mod] + [[@{halflevel}]] [Half Level] + [[@{intimidate-trained}*5)]] [Trained] + [[@{intimidate-pen}]] [Armor Penalty] + [[@{intimidate-misc}]] [Misc] ]]}}" name='intimidate-Check'>
-								<span name="attr_intimidate_modifier"></span>
-							</button>
-						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="intimidate">Intimidate</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="cha">CHA</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_intimidate-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_intimidate-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_intimidate-misc" value="0"/>
-						</div>
-					</div>
-					<!-- Nature -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_nature_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-nature-roll-text}}} {{name=Nature}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{wisdom-mod}]] [WIS Mod] + [[@{halflevel}]] [Half Level] + [[@{nature-trained}*5)]] [Trained] + [[@{nature-pen}]] [Armor Penalty] + [[@{nature-misc}]] [Misc] ]]}}" name='nature-Check'>
-								<span name="attr_nature_modifier"></span>
-							</button>
-						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="nature">Nature</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="wis">WIS</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_nature-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_nature-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_nature-misc" value="0"/>
+						<div class="sheet-skills-container">
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Bluff}} {{character=@{character_name}}} {{roll=[[2d6+@{bluff_bonus}]]}} {{result=[[7+@{bluff_bonus}]]}}">
+									Bluff
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_bluff_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_bluff_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_bluff_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Diplomacy}} {{character=@{character_name}}} {{roll=[[2d6+@{diplomacy_bonus}]]}} {{result=[[7+@{diplomacy_bonus}]]}}">
+									Diplomacy
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_diplomacy_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_diplomacy_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_diplomacy_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Intimidate}} {{character=@{character_name}}} {{roll=[[2d6+@{intimidate_bonus}]]}} {{result=[[7+@{intimidate_bonus}]]}}">
+									Intimidate
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_intimidate_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_intimidate_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_intimidate_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
+							<div class="sheet-skill">
+								<button type="roll" class="sheet-skill-button" value="&{template:skill} {{name=Streetwise}} {{character=@{character_name}}} {{roll=[[2d6+@{streetwise_bonus}]]}} {{result=[[7+@{streetwise_bonus}]]}}">
+									Streetwise
+								</button>
+								<div class="sheet-teeth-container">
+									<input type="radio" name="attr_streetwise_tier" value="0" class="sheet-tooth" checked>
+									<input type="radio" name="attr_streetwise_tier" value="1" class="sheet-tooth">
+									<input type="radio" name="attr_streetwise_tier" value="2" class="sheet-tooth">
+								</div>
+							</div>
 						</div>
 					</div>
-					<!-- Perception -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_perception_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-perception-roll-text}}} {{name=Perception}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{wisdom-mod}]] [WIS Mod] + [[@{halflevel}]] [Half Level] + [[@{perception-trained}*5)]] [Trained] + [[@{perception-pen}]] [Armor Penalty] + [[@{perception-misc}]] [Misc] ]]}}" name='perception-Check'>
-								<span name="attr_perception_modifier"></span>
-							</button>
+					<div class="sheet-attribute-block">
+						<div class="sheet-attribute-circle">
+							<span class="sheet-attr-label">TOUGH</span>
+							<input type="number" name="attr_tough" value="0" class="sheet-attr-input">
 						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="perception">Perception</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="wis">WIS</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_perception-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_perception-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_perception-misc" value="0"/>
-						</div>
-					</div>
-					<!-- Religion -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_religion_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-religion-roll-text}}} {{name=Religion}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{intelligence-mod}]] [INT Mod] + [[@{halflevel}]] [Half Level] + [[@{religion-trained}*5)]] [Trained] + [[@{religion-pen}]] [Armor Penalty] + [[@{religion-misc}]] [Misc] ]]}}" name='religion-Check'>
-								<span name="attr_religion_modifier"></span>
-							</button>
-						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="religion">Religion</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="int">INT</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_religion-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_religion-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_religion-misc" value="0"/>
+						<div class="sheet-moves-container">
+							<div class="sheet-move">
+								<button type="roll" class="sheet-move-button" value="&{template:move} {{name=Protect Someone}} {{character=@{character_name}}} {{roll=[[2d6+@{tough}]]}}">
+									Protect Someone
+								</button>
+							</div>
+							<div class="sheet-move">
+								<button type="roll" class="sheet-move-button" value="&{template:move} {{name=Withstand}} {{character=@{character_name}}} {{roll=[[2d6+@{tough}]]}}">
+									Withstand
+								</button>
+							</div>
+							<div class="sheet-move">
+								<button type="roll" class="sheet-move-button" value="&{template:move} {{name=Kick Some Ass}} {{character=@{character_name}}} {{roll=[[2d6+@{tough}]]}}">
+									Kick Some Ass
+								</button>
+							</div>
 						</div>
 					</div>
-					<!-- Stealth -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_stealth_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-stealth-roll-text}}} {{name=Stealth}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{dexterity-mod}]] [DEX Mod] + [[@{halflevel}]] [Half Level] + [[@{stealth-trained}*5)]] [Trained] + [[@{stealth-pen}]] [Armor Penalty] + [[@{stealth-misc}]] [Misc] ]]}}" name='stealth-Check'>
-								<span name="attr_stealth_modifier"></span>
-							</button>
+					
+					<div class="sheet-attribute-block">
+						<div class="sheet-attribute-circle">
+							<span class="sheet-attr-label">COOL</span>
+							<input type="number" name="attr_cool" value="0" class="sheet-attr-input">
 						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="stealth">Stealth</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="dex">DEX</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_stealth-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_stealth-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_stealth-misc" value="0"/>
+						<div class="sheet-moves-container">
+							<div class="sheet-move">
+								<button type="roll" class="sheet-move-button" value="&{template:move} {{name=Act Under Pressure}} {{character=@{character_name}}} {{roll=[[2d6+@{cool}]]}}">
+									Act Under Pressure
+								</button>
+							</div>
+							<div class="sheet-move">
+								<button type="roll" class="sheet-move-button" value="&{template:move} {{name=Help Out}} {{character=@{character_name}}} {{roll=[[2d6+@{cool}]]}}">
+									Help Out
+								</button>
+							</div>
 						</div>
 					</div>
-					<!-- Streetwise -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_streetwise_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-streetwise-roll-text}}} {{name=Streetwise}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{charisma-mod}]] [CHA Mod] + [[@{halflevel}]] [Half Level] + [[@{streetwise-trained}*5)]] [Trained] + [[@{streetwise-pen}]] [Armor Penalty] + [[@{streetwise-misc}]] [Misc] ]]}}" name='streetwise-Check'>
-								<span name="attr_streetwise_modifier"></span>
-							</button>
+					
+					<div class="sheet-attribute-block">
+						<div class="sheet-attribute-circle">
+							<span class="sheet-attr-label">SHARP</span>
+							<input type="number" name="attr_sharp" value="0" class="sheet-attr-input">
 						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="streetwise">Streetwise</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="cha">CHA</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_streetwise-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_streetwise-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_streetwise-misc" value="0"/>
+						<div class="sheet-moves-container">
+							<div class="sheet-move">
+								<button type="roll" class="sheet-move-button" value="&{template:move} {{name=Investigate}} {{character=@{character_name}}} {{roll=[[2d6+@{sharp}]]}}">
+									Investigate
+								</button>
+							</div>
+							<div class="sheet-move">
+								<button type="roll" class="sheet-move-button" value="&{template:move} {{name=Read a Bad Situation}} {{character=@{character_name}}} {{roll=[[2d6+@{sharp}]]}}">
+									Read a Bad Situation
+								</button>
+							</div>
 						</div>
 					</div>
-					<!-- Thievery -->
-					<div class="sheet-row sheet-alternative">
-						<div class="sheet-item sheet-tiny">
-						    <input type="hidden" name="attr_thievery_modifier" value="0" readonly />
-							<button class="sheet-hidden-roll" type='roll' value="&{template:dnd4epower} {{emote=@{skill-thievery-roll-text}}} {{name=Thievery}} {{class=@{character_name}}} {{type=Skill Check}} {{skill=[[1d20 + [[@{dexterity-mod}]] [DEX Mod] + [[@{halflevel}]] [Half Level] + [[@{thievery-trained}*5)]] [Trained] + [[@{thievery-pen}]] [Armor Penalty] + [[@{thievery-misc}]] [Misc] ]]}}" name='thievery-Check'>
-								<span name="attr_thievery_modifier"></span>
-							</button>
+					
+					<div class="sheet-attribute-block">
+						<div class="sheet-attribute-circle">
+							<span class="sheet-attr-label">WEIRD</span>
+							<input type="number" name="attr_weird" value="0" class="sheet-attr-input">
 						</div>
-						<div class="sheet-item sheet-med">
-							<label data-i18n="thievery">Thievery</label> 
-						</div>
-						<div class="sheet-item sheet-puny">
-							<label data-i18n="dex">DEX</label> 
-						</div>
-						<div class="sheet-item sheet-puny sheet-center">
-							<input type="checkbox" name="attr_thievery-trained" value="1"/>
-						</div>
-                        <div class="sheet-item sheet-small">
-							<input type="text" name="attr_thievery-pen" value="0"/>
-						</div>
-						<div class="sheet-item sheet-tiny">
-							<input type="text" name="attr_thievery-misc" value="0"/>
+						<div class="sheet-moves-container">
+							<div class="sheet-move">
+								<button type="roll" class="sheet-move-button" value="&{template:move} {{name=Use the Uncanny}} {{character=@{character_name}}} {{roll=[[2d6+@{weird}]]}}">
+									Use the Uncanny
+								</button>
+							</div>
 						</div>
 					</div>
-					<!-- HIDDEN AUTO-CALCULATIONS -->
-					<div class="swept-under-the-rug">
-					    <input type="text" name="attr_acrobatics" value="(@{dexterity-mod-level}+@{acrobatics-trained}*5)+@{acrobatics-pen}+@{acrobatics-misc}" disabled = "true"/>
-					    <input type="text" name="attr_arcana" value="(@{intelligence-mod-level}+@{arcana-trained}*5)+@{arcana-pen}+@{arcana-misc}" disabled = "true"/>
-					    <input type="text" name="attr_athletics" value="(@{strength-mod-level}+@{athletics-trained}*5)+@{athletics-pen}+@{athletics-misc}" disabled = "true"/>
-					    <input type="text" name="attr_bluff" value="(@{charisma-mod-level}+@{bluff-trained}*5)+@{bluff-pen}+@{bluff-misc}" disabled = "true"/>
-					    <input type="text" name="attr_diplomacy" value="(@{charisma-mod-level}+@{diplomacy-trained}*5)+@{diplomacy-pen}+@{diplomacy-misc}" disabled = "true"/>
-					    <input type="text" name="attr_dungeoneering" value="(@{wisdom-mod-level}+@{dungeoneering-trained}*5)+@{dungeoneering-pen}+@{dungeoneering-misc}" disabled = "true"/>
-					    <input type="text" name="attr_endurance" value="(@{constitution-mod-level}+@{endurance-trained}*5)+@{endurance-pen}+@{endurance-misc}" disabled = "true"/>
-					    <input type="text" name="attr_heal" value="(@{wisdom-mod-level}+@{heal-trained}*5)+@{heal-pen}+@{heal-misc}" disabled = "true"/>
-					    <input type="text" name="attr_history" value="(@{intelligence-mod-level}+@{history-trained}*5)+@{history-pen}+@{history-misc}" disabled = "true"/>
-					    <input type="text" name="attr_insight" value="(@{wisdom-mod-level}+@{insight-trained}*5)+@{insight-pen}+@{insight-misc}" disabled = "true"/>
-					    <input type="text" name="attr_intimidate" value="(@{charisma-mod-level}+@{intimidate-trained}*5)+@{intimidate-pen}+@{intimidate-misc}" disabled = "true"/>
-					    <input type="text" name="attr_nature" value="(@{wisdom-mod-level}+@{nature-trained}*5)+@{nature-pen}+@{nature-misc}" disabled = "true"/>
-					    <input type="text" name="attr_perception" value="(@{wisdom-mod-level}+@{perception-trained}*5)+@{perception-pen}+@{perception-misc}" disabled = "true"/>
-					    <input type="text" name="attr_religion" value="(@{intelligence-mod-level}+@{religion-trained}*5)+@{religion-pen}+@{religion-misc}" disabled = "true"/>
-					    <input type="text" name="attr_stealth" value="(@{dexterity-mod-level}+@{stealth-trained}*5)+@{stealth-pen}+@{stealth-misc}" disabled = "true"/>
-					    <input type="text" name="attr_streetwise" value="(@{charisma-mod-level}+@{streetwise-trained}*5)+@{streetwise-pen}+@{streetwise-misc}" disabled = "true"/>
-					    <input type="text" name="attr_thievery" value="(@{dexterity-mod-level}+@{thievery-trained}*5)+@{thievery-pen}+@{thievery-misc}" disabled = "true"/>
+					
+					<div class="sheet-attribute-block">
+						<div class="sheet-attribute-circle">
+							<span class="sheet-attr-label">CHARM</span>
+							<input type="number" name="attr_charm" value="0" class="sheet-attr-input">
+						</div>
+						<div class="sheet-moves-container">
+							<div class="sheet-move">
+								<button type="roll" class="sheet-move-button" value="&{template:move} {{name=Manipulate Someone}} {{character=@{character_name}}} {{roll=[[2d6+@{charm}]]}}">
+									Manipulate Someone
+								</button>
+							</div>
+						</div>
 					</div>
 				</div>
+			</div>
 			</div>
 			
                 <!-- Start Generated Powers -->
@@ -11143,7 +11045,191 @@ An example of an Initiative check for the character bob would be "%{bob|-initiat
 		
 		</div>
 </div>
+<rolltemplate class="sheet-rolltemplate-skill">
+    <div class="sheet-rt-card">
+        <div class="sheet-rt-header">
+            <span class="sheet-rt-title">{{name}}</span>
+        </div>
+        <div class="sheet-rt-content">
+            <div class="sheet-rt-character">{{character}}</div>
+            <div class="sheet-rt-roll">{{roll}}</div>
+            
+            {{#rollLess() roll 7}}
+            <div class="sheet-rt-result sheet-rt-weak">
+                <span class="sheet-rt-result-text">Weak Outcome</span>
+            </div>
+            {{/rollLess() roll 7}}
+            
+            {{#rollBetween() roll 7 11}}
+            <div class="sheet-rt-result sheet-rt-standard">
+                <span class="sheet-rt-result-text">Standard Outcome</span>
+            </div>
+            {{/rollBetween() roll 7 11}}
+            
+            {{#rollGreater() roll 11}}
+            <div class="sheet-rt-result sheet-rt-critical">
+                <span class="sheet-rt-result-text">Critical Outcome!</span>
+            </div>
+            {{/rollGreater() roll 11}}
+        </div>
+    </div>
+</rolltemplate>
 
+<rolltemplate class="sheet-rolltemplate-move">
+    <div class="sheet-rt-card">
+        <div class="sheet-rt-header">
+            <span class="sheet-rt-title">{{name}}</span>
+        </div>
+        <div class="sheet-rt-content">
+            <div class="sheet-rt-character">{{character}}</div>
+            <div class="sheet-rt-roll">{{roll}}</div>
+            
+            {{#rollLess() roll 7}}
+            <div class="sheet-rt-result sheet-rt-weak">
+                <span class="sheet-rt-result-text">Weak Outcome</span>
+            </div>
+            {{/rollLess() roll 7}}
+            
+            {{#rollBetween() roll 7 11}}
+            <div class="sheet-rt-result sheet-rt-standard">
+                <span class="sheet-rt-result-text">Standard Outcome</span>
+            </div>
+            {{/rollBetween() roll 7 11}}
+            
+            {{#rollGreater() roll 11}}
+            <div class="sheet-rt-result sheet-rt-critical">
+                <span class="sheet-rt-result-text">Critical Outcome!</span>
+            </div>
+            {{/rollGreater() roll 11}}
+        </div>
+    </div>
+</rolltemplate>
+
+<rolltemplate class="sheet-rolltemplate-attack">
+    <div class="sheet-rt-card">
+        <div class="sheet-rt-header">
+            <span class="sheet-rt-title">{{name}}</span>
+        </div>
+        <div class="sheet-rt-content">
+            <div class="sheet-rt-character">{{character}}</div>
+            <div class="sheet-rt-roll">{{roll}}</div>
+            
+            {{#rollLess() roll 7}}
+            <div class="sheet-rt-result sheet-rt-weak">
+                <span class="sheet-rt-result-text">Weak Hit: Half Damage, No Conditions</span>
+                {{#damage}}
+                <div class="sheet-rt-damage">
+                    <span>Damage: {{damage}}</span>
+                </div>
+                {{/damage}}
+            </div>
+            {{/rollLess() roll 7}}
+            
+            {{#rollBetween() roll 7 11}}
+            <div class="sheet-rt-result sheet-rt-standard">
+                <span class="sheet-rt-result-text">Standard Hit: Full Damage</span>
+                {{#damage}}
+                <div class="sheet-rt-damage">
+                    <span>Damage: {{damage}}</span>
+                </div>
+                {{/damage}}
+            </div>
+            {{/rollBetween() roll 7 11}}
+            
+            {{#rollGreater() roll 11}}
+            <div class="sheet-rt-result sheet-rt-critical">
+                <span class="sheet-rt-result-text">Critical Hit: 1.5× Damage + Conditions!</span>
+                {{#damage}}
+                <div class="sheet-rt-damage">
+                    <span>Damage: {{damage}}</span>
+                </div>
+                {{/damage}}
+            </div>
+            {{/rollGreater() roll 11}}
+        </div>
+    </div>
+</rolltemplate>
+
+<rolltemplate class="sheet-rolltemplate-defense">
+    <div class="sheet-rt-card">
+        <div class="sheet-rt-header">
+            <span class="sheet-rt-title">{{name}}</span>
+        </div>
+        <div class="sheet-rt-content">
+            <div class="sheet-rt-character">{{character}}</div>
+            <div class="sheet-rt-roll">{{roll}}</div>
+            
+            {{#rollLess() roll 7}}
+            <div class="sheet-rt-result sheet-rt-weak">
+                <span class="sheet-rt-result-text">Enemy Success: Full Effect</span>
+            </div>
+            {{/rollLess() roll 7}}
+            
+            {{#rollBetween() roll 7 11}}
+            <div class="sheet-rt-result sheet-rt-standard">
+                <span class="sheet-rt-result-text">Enemy Partial Success</span>
+            </div>
+            {{/rollBetween() roll 7 11}}
+            
+            {{#rollGreater() roll 11}}
+            <div class="sheet-rt-result sheet-rt-critical">
+                <span class="sheet-rt-result-text">Enemy Fails: No Effect!</span>
+            </div>
+            {{/rollGreater() roll 11}}
+        </div>
+    </div>
+</rolltemplate>
+
+<rolltemplate class="sheet-rolltemplate-power">
+    <div class="sheet-rt-card">
+        <div class="sheet-rt-header">
+            <span class="sheet-rt-title">{{name}}</span>
+        </div>
+        <div class="sheet-rt-content">
+            <div class="sheet-rt-character">{{character}}</div>
+            <div class="sheet-rt-details">
+                <span class="sheet-rt-type">{{type}} • {{action}} action</span>
+            </div>
+            <div class="sheet-rt-description">{{description}}</div>
+            
+            {{#attack}}
+            <div class="sheet-rt-attack">
+                <span class="sheet-rt-attack-label">Attack:</span> {{attack}}
+                
+                {{#rollLess() attack 7}}
+                <div class="sheet-rt-result sheet-rt-weak">
+                    <span class="sheet-rt-result-text">Weak Hit: Half Damage, No Conditions</span>
+                </div>
+                {{/rollLess() attack 7}}
+                
+                {{#rollBetween() attack 7 11}}
+                <div class="sheet-rt-result sheet-rt-standard">
+                    <span class="sheet-rt-result-text">Standard Hit: Full Damage</span>
+                </div>
+                {{/rollBetween() attack 7 11}}
+                
+                {{#rollGreater() attack 11}}
+                <div class="sheet-rt-result sheet-rt-critical">
+                    <span class="sheet-rt-result-text">Critical Hit: 1.5× Damage + Conditions!</span>
+                </div>
+                {{/rollGreater() attack 11}}
+            </div>
+            {{/attack}}
+        </div>
+    </div>
+</rolltemplate>
+
+<rolltemplate class="sheet-rolltemplate-simple">
+    <div class="sheet-rt-card">
+        <div class="sheet-rt-header">
+            <span class="sheet-rt-title">{{name}}</span>
+        </div>
+        <div class="sheet-rt-content">
+            <div class="sheet-rt-character">{{character}}</div>
+            <div class="sheet-rt-roll">{{roll}}</div>
+        </div>
+    </div>
+</rolltemplate>
 <!-- Roll Template for D&D4e Character Sheet -->
 <rolltemplate class="sheet-rolltemplate-dnd4epower">
   <table>
