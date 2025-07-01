@@ -1,0 +1,144 @@
+<div class="sheet-syzygy-wrap">
+  <!-- DYNAMIC BACKGROUND/COLOR LAYER -->
+  <div class="sheet-syzygy-bg"></div>
+
+  <!-- TOP BAR -->
+  <div class="sheet-syzygy-topbar">
+    <div class="sheet-syzygy-topblocks">
+      <div class="sheet-category sheet-health" title="">
+        <span class="icon icon-health"></span>
+        <span class="sheet-label">Health</span>
+        <span class="sheet-field" title="">HP</span>
+        <span class="sheet-subfield" title="">/ Max</span>
+        <span class="sheet-subfield" title="">Temp</span>
+        <span class="sheet-subfield" title="">Surge</span>
+      </div>
+      <div class="sheet-category sheet-harm" title="">
+        <span class="icon icon-harm"></span>
+        <span class="sheet-label">Harm</span>
+        <span class="sheet-field" title="">Harm</span>
+      </div>
+      <div class="sheet-category sheet-defenses" title="">
+        <span class="icon icon-shield"></span>
+        <span class="sheet-label">Defenses</span>
+        <span class="sheet-field" title="">AC</span>
+        <span class="sheet-subfield" title="">Fort</span>
+        <span class="sheet-subfield" title="">Ref</span>
+        <span class="sheet-subfield" title="">Will</span>
+      </div>
+      <div class="sheet-category sheet-move" title="">
+        <span class="icon icon-boot"></span>
+        <span class="sheet-label">Move</span>
+        <span class="sheet-field" title="">Speed</span>
+      </div>
+      <div class="sheet-category sheet-initiative" title="">
+        <span class="icon icon-initiative"></span>
+        <span class="sheet-label">Init</span>
+        <span class="sheet-field" title="">Init</span>
+      </div>
+      <div class="sheet-category sheet-misc" title="">
+        <span class="icon icon-star"></span>
+        <span class="sheet-label">Misc</span>
+        <span class="sheet-field" title="">Bonuses</span>
+      </div>
+      <div class="sheet-category sheet-luck" title="">
+        <span class="icon icon-clover"></span>
+        <span class="sheet-label">Luck</span>
+        <span class="sheet-field" title="">Luck</span>
+      </div>
+    </div>
+    <div class="sheet-category sheet-settings" title="">
+      <span class="icon icon-gear"></span>
+    </div>
+  </div>
+
+  <!-- SLIDER BAR -->
+  <div class="sheet-syzygy-sliderbar" title="">
+    <input type="radio" name="syzygy-slider" id="syzygy-motw" class="sheet-slider-radio" checked>
+    <label for="syzygy-motw" class="sheet-slider-label" title=""><span class="icon icon-motw"></span>MotW</label>
+    <input type="radio" name="syzygy-slider" id="syzygy-inventory" class="sheet-slider-radio">
+    <label for="syzygy-inventory" class="sheet-slider-label" title=""><span class="icon icon-inventory"></span>Inventory</label>
+    <input type="radio" name="syzygy-slider" id="syzygy-features" class="sheet-slider-radio">
+    <label for="syzygy-features" class="sheet-slider-label" title=""><span class="icon icon-features"></span>Features</label>
+    <input type="radio" name="syzygy-slider" id="syzygy-4e" class="sheet-slider-radio">
+    <label for="syzygy-4e" class="sheet-slider-label" title=""><span class="icon icon-4e"></span>4e</label>
+    <div class="sheet-slider-bar" title="">
+      <div class="sheet-slider-line"></div>
+    </div>
+  </div>
+
+  <div class="sheet-syzygy-mainrow">
+    <!-- MOTW ATTRIBUTE WALL -->
+    <div class="sheet-wall sheet-motw-wall" title="">
+      <div class="sheet-attr-block" title="">
+        <span class="icon icon-charm"></span>
+        <span class="sheet-label" title="">Charm</span>
+        <div class="sheet-moves" title="">
+          <span class="icon icon-move"></span>
+          <span class="sheet-move-label" title="">Manipulate</span>
+        </div>
+      </div>
+      <div class="sheet-attr-block" title="">
+        <span class="icon icon-cool"></span>
+        <span class="sheet-label" title="">Cool</span>
+        <div class="sheet-moves" title="">
+          <span class="icon icon-move"></span>
+          <span class="sheet-move-label" title="">Act Under Pressure</span>
+        </div>
+      </div>
+      <!-- ... repeat for all MotW attributes -->
+    </div>
+
+    <!-- CENTRAL CONTENT AREA -->
+    <div class="sheet-syzygy-centerbox" title="">
+      <div class="sheet-content-motw sheet-content-tab" title="">
+        <span class="icon icon-motw"></span>
+        <!-- Placeholder -->
+      </div>
+      <div class="sheet-content-inventory sheet-content-tab" title="">
+        <span class="icon icon-inventory"></span>
+        <!-- Placeholder -->
+      </div>
+      <div class="sheet-content-features sheet-content-tab" title="">
+        <span class="icon icon-features"></span>
+        <!-- Placeholder -->
+      </div>
+      <div class="sheet-content-4e sheet-content-tab" title="">
+        <span class="icon icon-4e"></span>
+        <!-- Placeholder -->
+      </div>
+    </div>
+
+    <!-- 4E ATTRIBUTE WALL -->
+    <div class="sheet-wall sheet-4e-wall" title="">
+      <div class="sheet-attr-block" title="">
+        <span class="icon icon-strength"></span>
+        <span class="sheet-label" title="">STR</span>
+        <div class="sheet-skills" title="">
+          <span class="icon icon-skill"></span>
+          <span class="sheet-skill-label" title="">Athletics</span>
+        </div>
+      </div>
+      <div class="sheet-attr-block" title="">
+        <span class="icon icon-dexterity"></span>
+        <span class="sheet-label" title="">DEX</span>
+        <div class="sheet-skills" title="">
+          <span class="icon icon-skill"></span>
+          <span class="sheet-skill-label" title="">Acrobatics</span>
+        </div>
+      </div>
+      <!-- ... repeat for all 4e attributes -->
+    </div>
+  </div>
+
+  <!-- BOTTOM CHARACTER BAR -->
+	<input type="checkbox" id="sheet-charbar-toggle" class="sheet-charbar-toggle" />
+<label for="sheet-charbar-toggle" class="sheet-charbar-label" title="">Character Details</label>
+<div class="sheet-syzygy-charbar" title="">
+  <label for="sheet-charbar-toggle" class="charbar-minimize" title="Minimize">&times;</label>	
+    <span class="sheet-field" title="">Name</span>
+    <span class="sheet-field" title="">Race</span>
+    <span class="sheet-field" title="">Class</span>
+    <!-- ... etc. -->
+  </div>
+</div>
